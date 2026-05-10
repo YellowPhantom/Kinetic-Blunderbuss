@@ -47,9 +47,7 @@ The gauntlet consists of 13 hand-crafted stages:
 
 * **Moving Platform Inertia Desync**: Players may occasionally experience a coordinate "snap" or teleport effect when jumping from vertical lifts, as the player's position is updated by the platform's velocity.
 * **Input Buffering**: The engine does not support input buffering; actions like jumping or blasting will only trigger if the key is pressed while the player is grounded or after the cooldown has depleted.
-* **Extreme Precision Requirement**: Level 11 ("ONE SHOT") is balanced with a strict limit of 3 shells, requiring a near-perfect run.
 * **Frame-Rate Bound Physics**: Movement and gravity are calculated within a standard requestAnimationFrame loop, tying physics speed to the browser's refresh rate.
-* **Crumbling Platform Timing**: Platforms are set to dissolve exactly 40 frames after contact, creating tight timing windows.
 
 ## 📜 License
 

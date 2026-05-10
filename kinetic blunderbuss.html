@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinetic Blunderbuss: Ascension</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0a0a0a;
+            color: #eee;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-wrapper {
+            position: relative;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.9);
+            border: 4px solid #222;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #87CEEB;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            cursor: crosshair;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .screen {
+            background-color: rgba(10, 10, 15, 0.9);
+            padding: 40px;
+            border-radius: 8px;
+            text-align: center;
+            pointer-events: auto;
+            border: 2px solid #4a90e2;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+            transition: opacity 0.3s ease;
+        }
+
+        .hidden {
+            display: none !important;
+            opacity: 0;
+        }
+
+        h1 {
+            color: #4a90e2;
+            margin-top: 0;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        p {
+            line-height: 1.8;
+            color: #a0c4ff;
+            margin-bottom: 25px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #4a90e2;
+            color: #fff;
+            border: 2px solid #1c3d5a;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            font-family: inherit;
+            transition: all 0.2s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background-color: #5aa0f2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Level Menu Styles */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.3s ease-in-out; }
+
+        #level-select-screen {
+            width: 90%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            text-align: left;
+            padding: 30px;
+        }
+        #level-menu-left { flex: 3; }
+        #level-menu-right {
+            flex: 2;
+            border-left: 2px solid #334155;
+            padding-left: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .level-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .level-btn {
+            background-color: #1e293b;
+            color: #fff;
+            border: 2px solid #334155;
+            padding: 15px 0;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .level-btn:hover:not(.locked) {
+            background-color: #4a90e2;
+            border-color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .level-btn.locked {
+            cursor: not-allowed;
+            opacity: 0.5;
+            background-color: #0f172a;
+            border-color: #1e293b;
+        }
+
+        /* Fixed HUD elements */
+        #hud-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px 20px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+        }
+
+        .hud-text {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 2px 2px 0px #000;
+            margin: 0;
+        }
+        
+        #hud-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+            color: rgba(255,255,255,0.7);
+            text-shadow: 1px 1px 0px #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <div id="hud-bar" class="hidden">
+            <div id="hud-shells" class="hud-text">SHELLS: 0 / 0</div>
+            <div id="hud-level" class="hud-text">LEVEL 1</div>
+        </div>
+        
+        <div id="hud-controls" class="hidden">
+            [WASD] Move &nbsp;|&nbsp; [Mouse] Aim & Fire &nbsp;|&nbsp; [R] Restart Level
+        </div>
+
+        <div id="ui-layer">
+            <div id="start-screen" class="screen">
+                <h1>Kinetic Blunderbuss</h1>
+                <p>Welcome to the Void.<br><br>
+                [WASD] Move | [Space] Jump | [Mouse] Aim | [Left Click] Blast<br>
+                Ammo is fixed per level. Blast downward to Ascend.<br>
+                Press [R] if you get stuck or [ESC] for the Level Menu.</p>
+                <button id="start-btn">Initialize</button>
+            </div>
+
+            <div id="game-over-screen" class="screen hidden">
+                <h1 style="color: #ff4757;">TERMINATED</h1>
+                <p>Objective Failed.</p>
+                <button id="restart-btn">Retry Level [R]</button>
+            </div>
+
+            <div id="win-screen" class="screen hidden">
+                <h1 style="color: #2ed573;">ASCENSION COMPLETE</h1>
+                <p>You have mastered the void.</p>
+                <button id="menu-btn">Return</button>
+            </div>
+
+            <div id="level-select-screen" class="screen hidden">
+                <div id="level-menu-left">
+                    <h2 style="color: #4a90e2; margin-top: 0; letter-spacing: 2px;">SELECT LEVEL</h2>
+                    <div id="level-grid" class="level-grid"></div>
+                </div>
+                <div id="level-menu-right">
+                    <h3 id="info-title" style="color: #fff; margin-top: 0; font-size: 18px;">Hover a level</h3>
+                    <p id="info-shells" style="color: #f1c40f; font-weight: bold; margin: 10px 0;">-</p>
+                    <p id="info-desc" style="color: #a0c4ff; font-size: 14px; line-height: 1.4;">Select a level from the grid to view its details.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const winScreen = document.getElementById('win-screen');
+        const hudBar = document.getElementById('hud-bar');
+        const hudControls = document.getElementById('hud-controls');
+        const hudShells = document.getElementById('hud-shells');
+        const hudLevel = document.getElementById('hud-level');
+
+        // Physics & Engine Constants
+        const GRAVITY = 0.5;
+        const ZERO_G_GRAVITY = 0.05;
+        const TERMINAL_VELOCITY = 15;
+        
+        const FRICTION_GROUND = 0.8;
+        const FRICTION_AIR = 0.95;
+        const FRICTION_ICE = 0.98;
+        const FRICTION_ZERO_G = 0.99;
+        
+        const ACCELERATION = 0.8;
+        const MAX_SPEED = 5;
+        const RECOIL_FORCE = 12;
+        const TILE_SIZE = 16;
+        
+        // State
+        let gameState = 'START'; 
+        let currentLevelIndex = 0;
+        let screenShake = 0;
+        let currentLevel = null;
+        
+        let maxLevelReached = 0;
+        let prePauseState = 'START';
+        const levelDescriptions = [
+            "Key Mechanic: Basic Platforming. Walk, jump, and blast downward to ascend.",
+            "Key Mechanic: Mid-air Dash. Cross the deep pit by blasting backward.",
+            "Key Mechanic: Vertical Climbing. Requires precise downward blasts.",
+            "Key Mechanic: Crumbling Blocks. Do not linger, platforms will fall.",
+            "Key Mechanic: Moving Platforms. Stand firm on the ferry.",
+            "Key Mechanic: Momentum. Ride the momentum up, then blast.",
+            "Key Mechanic: Ice Physics. Ice retains your speed. Dash early.",
+            "Key Mechanic: Zero-G. Gravity is weak here. Drift up.",
+            "Key Mechanic: Zero-G Bubbles. Navigate the archipelago.",
+            "Key Mechanic: Gauntlet. Crumbling and moving hazards.",
+            "Key Mechanic: Ice + Precision. One shot, one opportunity.",
+            "Key Mechanic: Orbital Dynamics. Navigate the void bubbles.",
+            "Key Mechanic: The Ascent. Master all mechanics to escape the void."
+        ];
+
+        const camera = { x: 0, y: 0, targetX: 0, targetY: 0, smoothing: 0.1 };
+        const keys = { w: false, a: false, s: false, d: false };
+        const mouse = { x: 0, y: 0, worldX: 0, worldY: 0 };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Escape') {
+                toggleLevelMenu();
+                return;
+            }
+            if (e.code === 'KeyR' && gameState !== 'START' && gameState !== 'WIN' && gameState !== 'PAUSED') {
+                resetLevel();
+                return;
+            }
+            if (gameState !== 'PLAYING') return;
+            switch(e.code) {
+                case 'KeyA': case 'ArrowLeft': keys.a = true; break;
+                case 'KeyD': case 'ArrowRight': keys.d = true; break;
+                case 'KeyW': case 'ArrowUp': case 'Space': keys.w = true; break;
+                case 'KeyS': case 'ArrowDown': keys.s = true; break;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'KeyA': case 'ArrowLeft': keys.a = false; break;
+                case 'KeyD': case 'ArrowRight': keys.d = false; break;
+                case 'KeyW': case 'ArrowUp': case 'Space': keys.w = false; break;
+                case 'KeyS': case 'ArrowDown': keys.s = false; break;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0 && gameState === 'PLAYING') {
+                player.fire();
+            }
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => loadLevel(0));
+        document.getElementById('restart-btn').addEventListener('click', resetLevel);
+        document.getElementById('menu-btn').addEventListener('click', () => {
+            gameState = 'START';
+            startScreen.classList.remove('hidden');
+            winScreen.classList.add('hidden');
+            hudBar.classList.add('hidden');
+            hudControls.classList.add('hidden');
+        });
+
+        function toggleLevelMenu() {
+            const menu = document.getElementById('level-select-screen');
+            if (gameState === 'PAUSED') {
+                // Resume
+                menu.classList.add('hidden');
+                gameState = prePauseState;
+                if (gameState === 'PLAYING') {
+                    hudBar.classList.remove('hidden');
+                    hudControls.classList.remove('hidden');
+                } else if (gameState === 'START') {
+                    startScreen.classList.remove('hidden');
+                } else if (gameState === 'GAMEOVER') {
+                    gameOverScreen.classList.remove('hidden');
+                } else if (gameState === 'WIN') {
+                    winScreen.classList.remove('hidden');
+                }
+            } else {
+                // Pause and Show Menu
+                prePauseState = gameState;
+                gameState = 'PAUSED';
+                
+                // Hide all other screens and HUD
+                startScreen.classList.add('hidden');
+                gameOverScreen.classList.add('hidden');
+                winScreen.classList.add('hidden');
+                hudBar.classList.add('hidden');
+                hudControls.classList.add('hidden');
+                
+                buildLevelMenu();
+                menu.classList.remove('hidden');
+            }
+        }
+
+        function buildLevelMenu() {
+            const grid = document.getElementById('level-grid');
+            grid.innerHTML = '';
+            
+            const infoTitle = document.getElementById('info-title');
+            const infoShells = document.getElementById('info-shells');
+            const infoDesc = document.getElementById('info-desc');
+
+            // Reset info text
+            infoTitle.textContent = "Hover a level";
+            infoShells.textContent = "-";
+            infoDesc.textContent = "Select a level from the grid to view its details.";
+
+            for (let i = 0; i < 13; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'level-btn';
+                const isUnlocked = i <= maxLevelReached;
+                
+                btn.textContent = isUnlocked ? (i + 1) : '🔒';
+                if (!isUnlocked) btn.classList.add('locked');
+                
+                btn.addEventListener('mouseenter', () => {
+                    const tempLevel = LevelFactory.getLevel(i);
+                    if (isUnlocked) {
+                        infoTitle.textContent = tempLevel.name;
+                        infoShells.textContent = `Shells Provided: ${tempLevel.shells}`;
+                        infoDesc.textContent = levelDescriptions[i] || "Unknown challenges await.";
+                    } else {
+                        infoTitle.textContent = "LOCKED";
+                        infoShells.textContent = "Clear previous levels to unlock.";
+                        infoDesc.textContent = "";
+                    }
+                });
+
+                btn.addEventListener('click', () => {
+                    if (isUnlocked) {
+                        toggleLevelMenu(); 
+                        loadLevel(i);
+                    } else {
+                        btn.classList.remove('shake');
+                        void btn.offsetWidth; // Trigger reflow for animation restart
+                        btn.classList.add('shake');
+                    }
+                });
+                
+                grid.appendChild(btn);
+            }
+        }
+
+        class ParticleSystem {
+            constructor() {
+                this.particles = [];
+            }
+            spawn(x, y, vx, vy, life, color, size) {
+                this.particles.push({ x, y, vx, vy, life, maxLife: life, color, size });
+            }
+            spawnExplosion(x, y, angle) {
+                // Flash
+                for(let i=0; i<12; i++) {
+                    const spread = angle + (Math.random() - 0.5) * 0.6;
+                    const speed = Math.random() * 10 + 5;
+                    this.spawn(x, y, Math.cos(spread) * speed, Math.sin(spread) * speed, 
+                        10 + Math.random() * 10, ['#ffea00', '#ff5400', '#fff'][Math.floor(Math.random()*3)], Math.random() * 4 + 2);
+                }
+                // Smoke
+                for(let i=0; i<8; i++) {
+                    const spread = angle + (Math.random() - 0.5) * 0.3;
+                    const speed = Math.random() * 15 + 8;
+                    this.spawn(x, y, Math.cos(spread) * speed, Math.sin(spread) * speed, 
+                        20 + Math.random() * 20, 'rgba(150,150,150,0.8)', Math.random() * 3 + 2);
+                }
+            }
+            spawnDebris(x, y, width, height, color) {
+                for(let i=0; i<6; i++) {
+                    this.spawn(x + Math.random()*width, y + Math.random()*height, 
+                        (Math.random()-0.5)*4, Math.random()*-4, 30, color, Math.random()*4+2);
+                }
+            }
+            update() {
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    let p = this.particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vx *= 0.95;
+                    p.vy += 0.2; // Gravity on particles
+                    p.life--;
+                    if (p.life <= 0) this.particles.splice(i, 1);
+                }
+            }
+            draw(ctx) {
+                for (let p of this.particles) {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life / p.maxLife;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                }
+                ctx.globalAlpha = 1.0;
+            }
+        }
+        const particles = new ParticleSystem();
+
+        const player = {
+            x: 0, y: 0, width: 14, height: 24,
+            vx: 0, vy: 0,
+            isGrounded: false,
+            currentPlatform: null,
+            inZeroG: false,
+            
+            shells: 0,
+            maxShells: 0,
+            recoilTimer: 0,
+            cooldownTimer: 0,
+            maxCooldown: 60,
+            jumpCooldownTimer: 0,
+            maxJumpCooldown: 12, // 0.2s at 60 FPS
+            runTime: 0,
+            facingRight: true,
+
+            init: function(sx, sy, shells) {
+                this.x = sx; this.y = sy;
+                this.vx = 0; this.vy = 0;
+                this.shells = shells;
+                this.maxShells = shells;
+                this.isGrounded = false;
+                this.currentPlatform = null;
+                this.cooldownTimer = 0;
+                this.jumpCooldownTimer = 0;
+                this.maxCooldown = 60; // 1 second at 60 FPS
+                this.maxJumpCooldown = 12; // 0.2s at 60 FPS
+                this.updateHUD();
+            },
+
+            updateHUD: function() {
+                hudShells.textContent = `SHELLS: ${this.shells} / ${this.maxShells}`;
+                if (this.shells === 0 && this.maxShells > 0) hudShells.style.color = '#ff4757';
+                else hudShells.style.color = '#fff';
+            },
+
+            fire: function() {
+                if (this.shells <= 0 || this.cooldownTimer > 0 || this.jumpCooldownTimer > 0) return;
+                this.shells--;
+                this.cooldownTimer = this.maxCooldown;
+                this.updateHUD();
+                this.recoilTimer = 5;
+
+                const cx = this.x + this.width / 2;
+                const cy = this.y + this.height / 2;
+                const angle = Math.atan2(mouse.worldY - cy, mouse.worldX - cx);
+
+                // Apply Recoil - overrides previous velocity slightly for snappy feel
+                this.vx -= Math.cos(angle) * RECOIL_FORCE;
+                this.vy -= Math.sin(angle) * RECOIL_FORCE;
+
+                particles.spawnExplosion(cx + Math.cos(angle)*15, cy + Math.sin(angle)*15, angle);
+                screenShake = 12;
+            },
+
+            checkOverlap: function(rect) {
+                return (this.x < rect.x + rect.w && this.x + this.width > rect.x &&
+                        this.y < rect.y + rect.h && this.y + this.height > rect.y);
+            }
+        };
+
+        function updatePhysics() {
+            // 1. Process environment (Bubbles)
+            player.inZeroG = false;
+            for (let b of currentLevel.bubbles) {
+                const cx = player.x + player.width/2;
+                const cy = player.y + player.height/2;
+                const dist = Math.hypot(cx - b.x, cy - b.y);
+                if (dist < b.r) {
+                    player.inZeroG = true;
+                    // Visual feedback for bubble
+                    if (Math.random() < 0.2) particles.spawn(cx, cy, 0, -1, 20, '#00ffff', 2);
+                    break;
+                }
+            }
+
+            // Determine current physics constants
+            let activeGravity = player.inZeroG ? ZERO_G_GRAVITY : GRAVITY;
+            let targetFriction = player.inZeroG ? FRICTION_ZERO_G : (player.isGrounded ? FRICTION_GROUND : FRICTION_AIR);
+
+            // Special ground modifiers
+            if (player.isGrounded && player.currentPlatform) {
+                if (player.currentPlatform.type === 'ice') targetFriction = FRICTION_ICE;
+            }
+
+            // 2. Input Acceleration
+            const accel = player.isGrounded ? ACCELERATION : ACCELERATION * 0.5;
+            if (keys.a) { player.vx -= accel; player.facingRight = false; }
+            if (keys.d) { player.vx += accel; player.facingRight = true; }
+
+            // Jump Mechanic
+            if (keys.w && player.isGrounded) {
+                player.vy = -8.5; // Jump power tuned for basic platforming
+                player.isGrounded = false;
+                player.jumpCooldownTimer = player.maxJumpCooldown;
+            }
+
+            // Apply gravity and friction
+            player.vy += activeGravity;
+            if (player.vy > TERMINAL_VELOCITY) player.vy = TERMINAL_VELOCITY;
+            if (!keys.a && !keys.d) player.vx *= targetFriction;
+            
+            // Allow breaking speed limit slightly via recoil, decay otherwise
+            if (Math.abs(player.vx) > MAX_SPEED && (keys.a || keys.d)) player.vx *= 0.95;
+
+            // 3. Platform Updates (Moving / Crumbling)
+            currentLevel.platforms.forEach(p => {
+                if (p.type === 'moving') {
+                    p.t += p.speed * p.dir;
+                    if (p.t >= 1 || p.t <= 0) p.dir *= -1;
+                    const nextX = p.startX + (p.endX - p.startX) * p.t;
+                    const nextY = p.startY + (p.endY - p.startY) * p.t;
+                    p.dx = nextX - p.x;
+                    p.dy = nextY - p.y;
+                    p.x = nextX; p.y = nextY;
+                }
+                if (p.type === 'crumbling' && p.timer !== undefined) {
+                    p.timer--;
+                    if (p.timer === 0) {
+                        p.broken = true;
+                        particles.spawnDebris(p.x, p.y, p.w, p.h, '#e1b12c');
+                    }
+                }
+            });
+
+            const activePlatforms = currentLevel.platforms.filter(p => !p.broken);
+
+            // 4. Inherit Moving Platform Inertia
+            if (player.currentPlatform && player.currentPlatform.type === 'moving' && player.isGrounded) {
+                player.x += player.currentPlatform.dx || 0;
+                player.y += player.currentPlatform.dy || 0;
+            }
+
+            // 5. 2-PASS AABB COLLISION RESOLUTION
+
+            // PASS 1: X-Axis
+            player.x += player.vx;
+            for (let p of activePlatforms) {
+                if (player.checkOverlap(p)) {
+                    if (player.vx > 0) player.x = p.x - player.width;
+                    else if (player.vx < 0) player.x = p.x + p.w;
+                    player.vx = 0;
+                }
+            }
+
+            // PASS 2: Y-Axis
+            player.y += player.vy;
+            player.isGrounded = false;
+            player.currentPlatform = null;
+
+            for (let p of activePlatforms) {
+                if (player.checkOverlap(p)) {
+                    if (player.vy > 0) { // Landing
+                        player.y = p.y - player.height;
+                        player.isGrounded = true;
+                        player.currentPlatform = p;
+                        
+                        // Trigger crumble
+                        if (p.type === 'crumbling' && p.timer === undefined) {
+                            p.timer = 40; // frames until it breaks
+                        }
+                    } else if (player.vy < 0) { // Hitting ceiling
+                        player.y = p.y + p.h;
+                    }
+                    player.vy = 0;
+                }
+            }
+
+            // 6. Hazards and Win Condition
+            if (player.y > currentLevel.deathY) {
+                gameState = 'GAMEOVER';
+                gameOverScreen.classList.remove('hidden');
+                hudBar.classList.add('hidden');
+            }
+
+            const g = currentLevel.goal;
+            if (player.x < g.x + g.w && player.x + player.width > g.x &&
+                player.y < g.y + g.h && player.y + player.height > g.y) {
+                winLevel();
+            }
+
+            // Animation timing
+            if (player.recoilTimer > 0) player.recoilTimer--;
+            if (player.cooldownTimer > 0) player.cooldownTimer--;
+            if (player.jumpCooldownTimer > 0) player.jumpCooldownTimer--;
+            if (Math.abs(player.vx) > 0.5 && player.isGrounded) {
+                player.runTime += Math.abs(player.vx);
+            } else {
+                player.runTime = 0;
+            }
+        }
+
+        function drawPlayer(ctx) {
+            const cx = player.x + player.width / 2;
+            const cy = player.y + player.height / 2;
+            const aimAngle = Math.atan2(mouse.worldY - cy, mouse.worldX - cx);
+
+            ctx.save();
+            ctx.translate(cx, cy);
+
+            // 16x16 / Terraria Style Aesthetic
+            const bob = player.isGrounded ? Math.sin(player.runTime * 0.2) * 1.5 : 0;
+            
+            // Legs (4 frame walk cycle based on runTime)
+            ctx.fillStyle = '#2c3e50';
+            if (!player.isGrounded) {
+                // Airborne splay
+                ctx.fillRect(-6, 8, 4, 6);
+                ctx.fillRect(2, 8, 4, 6);
+            } else {
+                const cycle = Math.floor(player.runTime / 15) % 4;
+                if (cycle === 0 || cycle === 2) { // Stand
+                    ctx.fillRect(-4, 8, 4, 6);
+                    ctx.fillRect(0, 8, 4, 6);
+                } else if (cycle === 1) { // Right stride
+                    ctx.fillRect(-6, 8, 4, 5);
+                    ctx.fillRect(2, 8, 4, 7);
+                } else { // Left stride
+                    ctx.fillRect(-2, 8, 4, 7);
+                    ctx.fillRect(4, 8, 4, 5);
+                }
+            }
+
+            // Body
+            ctx.fillStyle = '#2980b9'; // Tunic
+            ctx.fillRect(-player.width/2, -6 + bob, player.width, 14);
+            
+            // Head
+            ctx.fillStyle = '#f1c40f'; // Helmet/Visor
+            ctx.fillRect(-6, -16 + bob, 12, 10);
+            ctx.fillStyle = '#e74c3c'; // Eye glow
+            if (Math.abs(aimAngle) < Math.PI/2) ctx.fillRect(2, -14 + bob, 4, 3);
+            else ctx.fillRect(-6, -14 + bob, 4, 3);
+
+            // Gun Rotation
+            ctx.save();
+            ctx.translate(0, bob); // Gun bobs with body
+            ctx.rotate(aimAngle);
+            
+            // Gun Sprite
+            ctx.fillStyle = '#7f8c8d'; // Metal
+            ctx.fillRect(0, -2, 18, 4);
+            ctx.fillStyle = '#95a5a6'; // Highlights
+            ctx.fillRect(14, -4, 6, 8); // Flared nozzle
+            ctx.fillStyle = '#34495e'; // Grip
+            ctx.fillRect(-4, -1, 6, 4);
+
+            // Recoil Flash
+            if (player.recoilTimer > 0) {
+                ctx.fillStyle = `rgba(255, 200, 50, ${player.recoilTimer / 5})`;
+                ctx.beginPath();
+                ctx.moveTo(20, 0);
+                ctx.lineTo(35 + Math.random()*10, -8);
+                ctx.lineTo(40 + Math.random()*5, 0);
+                ctx.lineTo(35 + Math.random()*10, 8);
+                ctx.fill();
+            }
+            ctx.restore(); // Restore gun rotation
+            
+            // Draw Cooldown Bar above player's head
+            if (player.cooldownTimer > 0) {
+                const ratio = 1 - (player.cooldownTimer / player.maxCooldown);
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(-10, -22 + bob, 20, 3);
+                ctx.fillStyle = '#f39c12'; // Reloading color (orange)
+                ctx.fillRect(-10, -22 + bob, 20 * ratio, 3);
+            } else if (player.jumpCooldownTimer > 0) {
+                const ratio = 1 - (player.jumpCooldownTimer / player.maxJumpCooldown);
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(-10, -22 + bob, 20, 3);
+                ctx.fillStyle = '#3498db'; // Jump cooldown color (blue)
+                ctx.fillRect(-10, -22 + bob, 20 * ratio, 3);
+            } else if (player.shells > 0) {
+                ctx.fillStyle = '#2ed573'; // Ready color (green)
+                ctx.fillRect(-2, -22 + bob, 4, 3);
+            }
+
+            ctx.restore(); // Restore body translation
+        }
+
+        function drawWorld(ctx) {
+            // Draw Zero-G Bubbles
+            for (let b of currentLevel.bubbles) {
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Draw Platforms
+            for (let p of currentLevel.platforms) {
+                if (p.broken) continue;
+
+                // Optimization: only draw if near camera
+                if (p.x > camera.x + canvas.width + 100 || p.x + p.w < camera.x - 100 ||
+                    p.y > camera.y + canvas.height + 100 || p.y + p.h < camera.y - 100) continue;
+
+                if (p.type === 'solid') {
+                    ctx.fillStyle = '#27ae60'; // Grass
+                    ctx.fillRect(p.x, p.y, p.w, 8);
+                    ctx.fillStyle = '#8e44ad'; // Alien Dirt
+                    ctx.fillRect(p.x, p.y + 8, p.w, p.h - 8);
+                } else if (p.type === 'moving') {
+                    ctx.fillStyle = '#e67e22'; // Orange industrial
+                    ctx.fillRect(p.x, p.y, p.w, p.h);
+                    ctx.fillStyle = '#d35400';
+                    ctx.fillRect(p.x, p.y, p.w, 4);
+                } else if (p.type === 'ice') {
+                    ctx.fillStyle = 'rgba(173, 216, 230, 0.7)';
+                    ctx.fillRect(p.x, p.y, p.w, p.h);
+                    ctx.strokeStyle = '#fff';
+                    ctx.strokeRect(p.x, p.y, p.w, p.h);
+                } else if (p.type === 'crumbling') {
+                    // Shake effect if active
+                    let ox = 0, oy = 0;
+                    if (p.timer !== undefined) {
+                        ox = (Math.random()-0.5)*4;
+                        oy = (Math.random()-0.5)*4;
+                        ctx.fillStyle = '#c0392b'; // Warning red
+                    } else {
+                        ctx.fillStyle = '#f39c12'; // Sand/Cracked
+                    }
+                    ctx.fillRect(p.x + ox, p.y + oy, p.w, p.h);
+                    
+                    // Cracks
+                    ctx.strokeStyle = '#d35400';
+                    ctx.beginPath();
+                    ctx.moveTo(p.x + ox + 5, p.y + oy);
+                    ctx.lineTo(p.x + ox + 15, p.y + oy + 10);
+                    ctx.lineTo(p.x + ox + p.w - 5, p.y + oy + p.h);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw Texts
+            if (currentLevel.texts) {
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.font = 'bold 16px "Courier New"';
+                for (let txt of currentLevel.texts) {
+                    ctx.fillText(txt.t, txt.x, txt.y);
+                }
+            }
+
+            // Draw Goal Portal
+            let g = currentLevel.goal;
+            const t = performance.now() * 0.003;
+            ctx.fillStyle = '#2ed573';
+            ctx.globalAlpha = 0.5 + Math.sin(t)*0.2;
+            ctx.fillRect(g.x, g.y, g.w, g.h);
+            ctx.globalAlpha = 1.0;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(g.x - Math.cos(t)*4, g.y - Math.sin(t)*4, g.w + Math.cos(t)*8, g.h + Math.sin(t)*8);
+        }
+
+        const LevelFactory = {
+            createRect: function(x,y,w,h,type='solid',extras={}) {
+                return {x, y, w, h, type, ...extras};
+            },
+            createMoving: function(sx, sy, ex, ey, w, h, speed) {
+                return this.createRect(sx, sy, w, h, 'moving', {startX: sx, startY: sy, endX: ex, endY: ey, speed: speed, t: 0, dir: 1});
+            },
+            
+            // The 13 Levels
+            getLevel: function(index) {
+                const make = this.createRect.bind(this);
+                const move = this.createMoving.bind(this);
+                
+                const levelsData = [
+                    // 1: Basics
+                    () => ({ name: "LEVEL 1: THE BASICS", spawnX: 100, spawnY: 400, deathY: 800, shells: 5, goal: {x: 700, y: 350, w: 40, h: 40},
+                        bubbles: [],
+                        platforms: [ make(50, 500, 300, 200), make(350, 450, 100, 300), make(450, 450, 400, 250) ],
+                        texts: [{t: "WASD: Move. Space/W: Jump.", x: 60, y: 300}, {t: "Mouse: Aim. Click: Blast.", x: 60, y: 320}, {t: "Blast down to Ascend. [ESC] for Menu.", x: 420, y: 250}]
+                    }),
+                    // 2: The Pit
+                    () => ({ name: "LEVEL 2: THE PIT", spawnX: 100, spawnY: 300, deathY: 800, shells: 3, goal: {x: 1050, y: 300, w: 40, h: 40},
+                        bubbles: [],
+                        platforms: [ make(50, 400, 200, 200), make(500, 450, 60, 20), make(900, 400, 300, 200) ],
+                        texts: [{t: "Blast backward to Dash forward.", x: 60, y: 250}, {t: "Manage your 3 shells wisely.", x: 60, y: 280}]
+                    }),
+                    // 3: Vertical Climb
+                    () => ({ name: "LEVEL 3: THE WALL", spawnX: 150, spawnY: 800, deathY: 1000, shells: 6, goal: {x: 180, y: 50, w: 40, h: 40},
+                        bubbles: [],
+                        platforms: [ make(100, 900, 200, 100), make(350, 750, 80, 20), make(100, 600, 80, 20), make(350, 450, 80, 20), make(100, 300, 80, 20), make(250, 150, 80, 20), make(150, 100, 100, 20) ]
+                    }),
+                    // 4: Crumbling Bridge
+                    () => ({ name: "LEVEL 4: FRAGILITY", spawnX: 100, spawnY: 400, deathY: 800, shells: 1, goal: {x: 900, y: 400, w: 40, h: 40},
+                        bubbles: [],
+                        platforms: [ make(50, 500, 150, 100), make(200, 500, 100, 20, 'crumbling'), make(350, 500, 100, 20, 'crumbling'), make(500, 500, 100, 20, 'crumbling'), make(650, 500, 100, 20, 'crumbling'), make(850, 500, 200, 100) ],
+                        texts: [{t: "Do not linger. They will fall.", x: 60, y: 350}]
+                    }),
+                    // 5: Moving Intro
+                    () => ({ name: "LEVEL 5: THE FERRY", spawnX: 100, spawnY: 400, deathY: 800, shells: 0, goal: {x: 800, y: 460, w: 40, h: 40},
+                        bubbles: [],
+                        platforms: [ make(50, 500, 150, 100), move(220, 500, 650, 500, 100, 20, 0.005), make(750, 500, 150, 100) ],
+                        texts: [{t: "Stand firm.", x: 80, y: 350}, {t: "Zero shells provided.", x: 80, y: 380}]
+                    }),
+                    // 6: Moving + Boost
+                    () => ({ name: "LEVEL 6: MOMENTUM", spawnX: 100, spawnY: 400, deathY: 800, shells: 1, goal: {x: 1000, y: 150, w: 40, h: 40},
+                        bubbles: [],
+                        platforms: [ make(50, 500, 150, 100), move(250, 500, 600, 200, 100, 20, 0.008), make(950, 200, 150, 100) ],
+                        texts: [{t: "Ride up, then blast.", x: 80, y: 350}]
+                    }),
+                    // 7: Ice Intro
+                    () => ({ name: "LEVEL 7: FRICTIONLESS", spawnX: 100, spawnY: 400, deathY: 800, shells: 1, goal: {x: 850, y: 400, w: 40, h: 40},
+                        bubbles: [],
+                        platforms: [ make(50, 500, 150, 100), make(200, 500, 400, 20, 'ice'), make(800, 500, 150, 100) ],
+                        texts: [{t: "Ice retains your speed. Dash early.", x: 60, y: 350}]
+                    }),
+                    // 8: Zero-G Intro
+                    () => ({ name: "LEVEL 8: ANOMALY", spawnX: 100, spawnY: 400, deathY: 800, shells: 2, goal: {x: 700, y: 100, w: 40, h: 40},
+                        bubbles: [ {x: 400, y: 300, r: 150} ],
+                        platforms: [ make(50, 500, 150, 100), make(650, 150, 150, 100) ],
+                        texts: [{t: "Gravity is weak here. Drift up.", x: 60, y: 300}]
+                    }),
+                    // 9: Bubble Hop
+                    () => ({ name: "LEVEL 9: ARCHIPELAGO", spawnX: 100, spawnY: 600, deathY: 900, shells: 4, goal: {x: 1100, y: 150, w: 40, h: 40},
+                        bubbles: [ {x: 350, y: 500, r: 100}, {x: 650, y: 350, r: 100}, {x: 950, y: 200, r: 100} ],
+                        platforms: [ make(50, 700, 150, 100), make(1050, 200, 150, 100) ]
+                    }),
+                    // 10: Factory (Crumble + Moving)
+                    () => ({ name: "LEVEL 10: THE GAUNTLET", spawnX: 100, spawnY: 400, deathY: 800, shells: 4, goal: {x: 1000, y: 150, w: 40, h: 40},
+                        bubbles: [],
+                        platforms: [ make(50, 500, 100, 100), make(200, 500, 60, 20, 'crumbling'), move(300, 500, 300, 200, 80, 20, 0.01), make(450, 200, 60, 20, 'crumbling'), move(550, 200, 850, 200, 80, 20, 0.008), make(950, 200, 150, 100) ]
+                    }),
+                    // 11: Hardcore 1
+                    () => ({ name: "LEVEL 11: ONE SHOT", spawnX: 100, spawnY: 400, deathY: 800, shells: 3, goal: {x: 900, y: 200, w: 40, h: 40},
+                        bubbles: [],
+                        platforms: [ make(50, 500, 150, 100, 'ice'), make(850, 250, 150, 100) ],
+                        texts: [{t: "Perfection Required.", x: 60, y: 300}]
+                    }),
+                    // 12: Hardcore 2
+                    () => ({ name: "LEVEL 12: ORBITAL", spawnX: 100, spawnY: 400, deathY: 800, shells: 3, goal: {x: 1000, y: 550, w: 40, h: 40},
+                        bubbles: [ {x: 400, y: 300, r: 180}, {x: 800, y: 400, r: 120} ],
+                        platforms: [ make(50, 500, 100, 100), move(500, 150, 700, 150, 60, 20, 0.02), make(950, 600, 150, 100) ]
+                    }),
+                    // 13: The Final Ascent
+                    () => ({ name: "LEVEL 13: APEX", spawnX: 400, spawnY: 900, deathY: 1100, shells: 7, goal: {x: 380, y: -400, w: 40, h: 40},
+                        bubbles: [ {x: 400, y: 500, r: 150}, {x: 200, y: 100, r: 100}, {x: 600, y: -150, r: 100} ],
+                        platforms: [ 
+                            make(300, 1000, 200, 100), // Start
+                            make(200, 800, 60, 20, 'crumbling'), make(600, 700, 60, 20, 'ice'),
+                            move(300, 300, 500, 300, 100, 20, 0.01),
+                            make(150, -50, 60, 20, 'crumbling'), make(650, -250, 60, 20, 'crumbling'),
+                            make(350, -350, 100, 20) // End
+                        ],
+                        texts: [{t: "Ascend the Void.", x: 320, y: 950}]
+                    })
+                ];
+                return levelsData[index] ? levelsData[index]() : null;
+            }
+        };
+
+        function loadLevel(index) {
+            currentLevel = LevelFactory.getLevel(index);
+            
+            if (!currentLevel) {
+                gameState = 'WIN';
+                winScreen.classList.remove('hidden');
+                hudBar.classList.add('hidden');
+                hudControls.classList.add('hidden');
+                return;
+            }
+
+            currentLevelIndex = index;
+            player.init(currentLevel.spawnX, currentLevel.spawnY, currentLevel.shells);
+            
+            camera.x = player.x - canvas.width / 2;
+            camera.y = player.y - canvas.height / 2;
+            particles.particles = [];
+            screenShake = 0;
+
+            hudLevel.textContent = currentLevel.name;
+            hudBar.classList.remove('hidden');
+            hudControls.classList.remove('hidden');
+
+            gameState = 'PLAYING';
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            winScreen.classList.add('hidden');
+        }
+
+        function resetLevel() {
+            // Because we use a factory, fetching the level again guarantees a deep copy 
+            // of arrays, objects, timers, and states. Zero bugs!
+            loadLevel(currentLevelIndex);
+        }
+
+        function winLevel() {
+            if (currentLevelIndex + 1 > maxLevelReached) {
+                maxLevelReached = currentLevelIndex + 1;
+            }
+            loadLevel(currentLevelIndex + 1);
+        }
+
+        function gameLoop() {
+            requestAnimationFrame(gameLoop);
+            
+            mouse.worldX = mouse.x + camera.x;
+            mouse.worldY = mouse.y + camera.y;
+
+            if (gameState === 'PLAYING') {
+                updatePhysics();
+                particles.update();
+
+                // Smooth Camera Follow
+                camera.targetX = player.x + player.width/2 - canvas.width / 2;
+                camera.targetY = player.y + player.height/2 - canvas.height / 2 + (player.vy * 5); 
+
+                camera.x += (camera.targetX - camera.x) * camera.smoothing;
+                camera.y += (camera.targetY - camera.y) * camera.smoothing;
+
+                if (screenShake > 0) screenShake *= 0.8;
+                if (screenShake < 0.5) screenShake = 0;
+            }
+
+            // RENDER PHASE
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Background Parallax
+            ctx.fillStyle = '#0f172a'; // Deep space blue
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            const sx = (Math.random() - 0.5) * screenShake;
+            const sy = (Math.random() - 0.5) * screenShake;
+            ctx.translate(-camera.x + sx, -camera.y + sy);
+
+            if (gameState === 'PLAYING' || gameState === 'GAMEOVER' || gameState === 'PAUSED') {
+                // Render Grid/Stars background based on camera position
+                ctx.fillStyle = '#1e293b';
+                for(let i=0; i<20; i++) {
+                    ctx.fillRect(
+                        Math.floor(camera.x * 0.8) % 1000 + i*150 - 200, 
+                        Math.floor(camera.y * 0.8) % 1000 + (i%5)*200 - 200, 
+                        4, 4
+                    );
+                }
+
+                drawWorld(ctx);
+                particles.draw(ctx);
+                drawPlayer(ctx);
+            } else if (gameState === 'START') {
+                // Menu background art
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
+            }
+
+            ctx.restore();
+            
+            // Crosshair
+            if (gameState === 'PLAYING') {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(mouse.x - 12, mouse.y); ctx.lineTo(mouse.x + 12, mouse.y);
+                ctx.moveTo(mouse.x, mouse.y - 12); ctx.lineTo(mouse.x, mouse.y + 12);
+                ctx.stroke();
+                ctx.fillStyle = '#ff4757';
+                ctx.fillRect(mouse.x - 2, mouse.y - 2, 4, 4);
+            }
+        }
+
+        // Boot
+        requestAnimationFrame(gameLoop);
+
+    </script>
+</body>
+</html>
